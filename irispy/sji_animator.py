@@ -94,7 +94,7 @@ for i,file in enumerate(sji_list[0:15]):
         st = datetime.datetime.strptime(mc[0].meta['DATE-OBS'], '%Y-%m-%d' + ' ' + '%H:%M:%S.%f')
 
         # Rotate Helio Projective Coordinates from end-start time (time elapsed between obs)
-        cen = diff_rot.solar_rotate_coordinate(cen, st, frame_time='synodic', rot_type='snodgrass')
+       # cen = diff_rot.solar_rotate_coordinate(cen, st, frame_time='synodic', rot_type='snodgrass')
 
         #New Submap Boundaries
         x0 = (cen.data._lon.arcsec - .5 * xlength)
@@ -146,7 +146,7 @@ for i,file in enumerate(sji_list[0:15]):
             ax0.cla()
             ax1.cla()
     # Rotate Helio Projective Coordinates from start-end time (time elapsed during obs)
-    #cen = diff_rot.solar_rotate_coordinate(cen, et, frame_time='synodic', rot_type='snodgrass')
+    cen = diff_rot.solar_rotate_coordinate(cen, et, frame_time='synodic', rot_type='snodgrass')
 
 end = time.perf_counter() - start
 

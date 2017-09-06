@@ -862,7 +862,7 @@ def dustbuster(mc):
         elif nx > 50:  # dense raster
             skip = 3
         #  Create mask with values < 10)
-        m = ma.masked_inside(image_orig,-199,1)
+        m = ma.masked_inside(image_orig,-199,0)
         #  Dilate dust spots by 1 pixel
         dilate = generate_binary_structure(2, 2)
         m.mask = binary_dilation(m.mask, structure=dilate)
