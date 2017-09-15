@@ -32,7 +32,7 @@ from irispy import iris_tools
 from scipy.ndimage import binary_dilation, generate_binary_structure
 
 
-__all__ = ['SJI_fits_to_cube','SJI_to_cube', 'SJICube', 'SJIMap', 'dustbuster', 'intscale']
+__all__ = ['SJI_fits_to_cube','SJI_to_cube', 'SJICube', 'SJIMap', 'dustbuster', 'intscale','coali']
 
 from sunpy import config
 TIME_FORMAT = config.get("general", "time_format")
@@ -769,7 +769,6 @@ def SJI_fits_to_cube(filelist, start=0, stop=None, skip=None):
             if frame.mean() < frame.max():
                 iris_cube.maps.append(frame)
 
-    #  todo: pointing correction(rot_hpc)
 
 
     return iris_cube
@@ -831,53 +830,3 @@ def SJI_to_cube(filename, start=0, stop=None, hdu=0):
 
     return iris_cube
 
-def dustbuster(mc):
-    """
-    Read SJI fits files and return Inpaint-corrected fits files.
-    Image inpainting involves filling in part of an image or video
-    using information from the surrounding area.
-
-    Parameters
-    ----------
-    mc: `sunpy.map.MapCube`
-        Mapcube to read
-
-
-    Returns
-    -------
-    mc: `sunpy.map.MapCube`
-        Inpaint-corrected Mapcube
-    """
-    image_result = []
-    ndx = len(mc)
-    #intscale(mc)
-
-    for i, map in enumerate(mc):
-        image_orig = map.data
-        xlength,ylength = map.data.shape
-        if i ==0:
-            nx = map.meta.get('NRASTERP')
-        if nx <= 50:  # sparse/coarse raster
-            skip = 1
-        elif nx > 50:  # dense raster
-            skip = 3
-        #  Create mask with values < 10)
-        m = ma.masked_inside(image_orig,-199,0)
-        #  Dilate dust spots by 1 pixel
-        dilate = generate_binary_structure(2, 2)
-        m.mask = binary_dilation(m.mask, structure=dilate)
-        if (i)%nx>=nx-skip:
-            skip = -1*(skip)
-        image_inpaint = mc[i + skip].data.copy()
-        image_orig[m.mask] = image_inpaint[m.mask]
-        map.dustmask = m.mask
-        map.meta.add_history('Dustbuster correction applied, dustmask attribute added')
-    return mc
-def intscale(mc):
-    offset = 31968
-    for map in mc:
-        imdata=map.data
-        if imdata.min() == BAD_PIXEL_VALUE_UNSCALED:
-            imdata[:, :] = (imdata[:, :]+offset) * .25
-            map.meta.add_history('Intscale applied')
-    return mc
