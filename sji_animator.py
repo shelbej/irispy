@@ -254,27 +254,23 @@ def dustbuster(mc):
         dustmask = ma.masked_inside(image_orig,-199,0)
         if dustmask.mask.shape != image_orig.shape:
             print("Dust not detected")
-            m.plot()
 
         else:
         #  Dilate dust spots by 1 pixel
             dilate = generate_binary_structure(2, 2)
             dustmask.mask = binary_dilation(dustmask.mask, structure=dilate)
-            #if (i)%nx>=nx-skip:
-            #    skip = -1*(skip)
-           # image_inpaint = mc[i + skip].data.copy()
             image_orig[dustmask.mask] = image_inpaint[dustmask.mask]
 
-            #m.mask[dustmask.mask] = True
-            #plt.imshow(m.mask)
+            m.mask[dustmask.mask] = True
             m.meta.add_history('Dustbuster correction applied, dustmask added to map mask')
     return mc
 def intscale(mc):
-    offset = 31968
+    BZERO = 31968
+    BSCALE = mc[0].meta['bscale']
     for m in mc:
         imdata=m.data
         if imdata.min() == BAD_PIXEL_VALUE_UNSCALED:
-            imdata[:, :] = (imdata[:, :]+offset) * .25#.astype('uint8'))
+            imdata[:, :] = (imdata[:, :]+BZERO) * BSCALE
             m.meta.add_history('Intscale applied')
     return mc
 
