@@ -11,7 +11,7 @@ import matplotlib.colors as colors
 import matplotlib.animation
 from pandas import DataFrame
 from astropy.table import Table
-from astropy.io import fits as pyfits
+from astropy.io import fits
 import astropy.units as u
 from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy import visualization
@@ -27,6 +27,8 @@ from sunpy.visualization.mapcubeanimator import MapCubeAnimator
 from sunpy.visualization import wcsaxes_compat
 from sunpy.time import parse_time
 from sunpy.lightcurve import LightCurve
+
+from ndcube import NDCube
 
 from irispy import iris_tools
 
@@ -75,15 +77,15 @@ class SJIMap(GenericMap):
             self.meta['wavelnth'] = header.get('twave1')
             self.meta['detector'] = header.get('instrume')
             self.meta['waveunit'] = "Angstrom"
+            palette = cm.get_cmap('irissji' + str(int(self.meta['wavelnth'])))
+            palette.set_bad('black')
+            self.plot_settings['cmap'] = palette
         if header.get('lvl_num') == 1:
             self.meta['wavelnth'] = int(header.get('img_path').split('_')[1])
             self.meta['waveunit'] = "Angstrom"
 
-        self.meta['detector'] = "SJI"
-        self.meta['waveunit'] = "Angstrom"
-        palette = cm.get_cmap('irissji' + str(int(self.meta['wavelnth'])))
-        palette.set_bad('black')
-        self.plot_settings['cmap'] = palette
+
+
         self.plot_settings['norm'] = ImageNormalize(stretch=visualization.AsinhStretch(0.1))
 
     @classmethod
@@ -141,52 +143,57 @@ class SJICube(object):
 
     def __init__(self, input):
         """Creates a new instance"""
-        if isinstance(input, str):
-            fits = pyfits.open(input, memmap=True, do_not_scale_image_data=True)
-            # TODO find a new masking value for unscaled data
-            #self.data = np.ma.masked_less_equal(fits[0].data, 0)
-            self.data = fits[0].data
-            self.mask = np.ma.masked_equal(fits[0].data, BAD_PIXEL_VALUE_UNSCALED).mask
-            reference_header = deepcopy(fits[0].header)
-            table_header = deepcopy(fits[1].header)
-            # fix reference header
-            if reference_header.get('lvl_num') == 2:
-                reference_header['wavelnth'] = reference_header.get('twave1')
-                reference_header['detector'] = reference_header.get('instrume')
-                reference_header['waveunit'] = "Angstrom"
-                reference_header['obsrvtry'] = reference_header.get('telescop')
-            # check consistency
-            if reference_header['NAXIS3'] != self.data.shape[0]:
-                raise ValueError("Something is not right with this file!")
+        if type(input) is str:
+            input = [input]
+            for f, filename in enumerate(input):
+                #fits = pyfits.open(input, memmap=True, do_not_scale_image_data=True)
+                hdulist = fits.open(filename)
+                data = hdulist[0].data
+                wcs_ = WCS(hdulist[0].header)
+                ndc = NDCube(data, wcs=wcs_)
+                #self.data = np.ma.masked_less_equal(fits[0].data, 0)
+                self.data = data
+                self.mask = np.ma.masked_equal(data, BAD_PIXEL_VALUE).mask
+                reference_header = deepcopy(hdulist[0].header)
+                table_header = deepcopy(hdulist[1].header)
+                # fix reference header
+                if reference_header.get('lvl_num') == 2:
+                    reference_header['wavelnth'] = reference_header.get('twave1')
+                    reference_header['detector'] = reference_header.get('instrume')
+                    reference_header['waveunit'] = "Angstrom"
+                    reference_header['obsrvtry'] = reference_header.get('telescop')
+                # check consistency
+                if reference_header['NAXIS3'] != self.data.shape[0]:
+                    raise ValueError("Something is not right with this file!")
 
-            number_of_images = self.data.shape[0]
-            metas = []
-            dts = fits[1].data[:, fits[1].header['TIME']]
-            file_wcs = WCS(fits[0].header)
-            # Caution!! This has not been confirmed for non-zero roll
-            # angles.
-            self.slit_center_sji_indices_x = fits[1].data[:, fits[1].header['SLTPX1IX']]
-            self.slit_center_sji_indices_y = fits[1].data[:, fits[1].header['SLTPX2IX']]
-            slit_center_positions = file_wcs.celestial.all_pix2world(
-                self.slit_center_sji_indices_x, self.slit_center_sji_indices_y,
-                iris_tools.WCS_ORIGIN)
-            self.slit_center_position_x = u.Quantity(slit_center_positions[0], 'deg').to("arcsec")
-            self.slit_center_position_y = u.Quantity(slit_center_positions[1], 'deg').to("arcsec")
+                number_of_images = self.data.shape[0]
+                metas = []
+                dts = hdulist[1].data[:, hdulist[1].header['TIME']]
+                file_wcs = WCS(hdulist[0].header)
+                # Caution!! This has not been confirmed for non-zero roll
+                # angles.
+                self.slit_center_sji_indices_x = hdulist[1].data[:, hdulist[1].header['SLTPX1IX']]
+                self.slit_center_sji_indices_y = hdulist[1].data[:, hdulist[1].header['SLTPX2IX']]
+                slit_center_positions = file_wcs.celestial.all_pix2world(
+                    self.slit_center_sji_indices_x, self.slit_center_sji_indices_y,
+                    iris_tools.WCS_ORIGIN)
+                self.slit_center_position_x = u.Quantity(slit_center_positions[0], 'deg').to("arcsec")
+                self.slit_center_position_y = u.Quantity(slit_center_positions[1], 'deg').to("arcsec")
 
-            # append info in second hdu to each header
-            for i in range(number_of_images):
-                metas.append(deepcopy(reference_header))
-                metas[i]['DATE_OBS'] = str(parse_time(
-                    reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
-                # copy over the individual header fields
-                for item in fits[1].header[7:]:
-                    metas[i][item] = fits[1].data[i, fits[1].header[item]]
-                    if item.count('EXPTIMES'):
-                        metas[i]['EXPTIME'] = fits[1].data[i, fits[1].header[item]]
+                # append info in second hdu to each header
+                for i in range(number_of_images):
+                    metas.append(deepcopy(reference_header))
+                    metas[i]['DATE_OBS'] = str(parse_time(
+                        reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
+                    # copy over the individual header fields
+                    for item in hdulist[1].header[7:]:
+                        metas[i][item] = hdulist[1].data[i, hdulist[1].header[item]]
+                        if item.count('EXPTIMES'):
+                            metas[i]['EXPTIME'] = hdulist[1].data[i, hdulist[1].header[item]]
 
-            self._meta = metas
+                self._meta = metas
         elif len(input) > 1:
-            self.data = input[0]
+            self.data = NDCube(input[0], wcs=wcs_)
             self._meta = input[1]
             number_of_images = self.data.shape[0]
 
@@ -427,6 +434,7 @@ Scale:\t\t {scale}
         Calculate the nth percentile value of the data array.
         """
         return SJIMap(np.percentile(self.data, n, axis=0), self._meta[self.ref_index])
+
     def plot(self, axes=None, resample=None, annotate=True, interval=200,
              plot_function=None, **kwargs):
         """
@@ -507,16 +515,16 @@ Scale:\t\t {scale}
             axes.set_title("{s.name}".format(s=self[i]))
 
             # x-axis label
-            if self[0].coordinate_system.x == 'HG':
-                xlabel = 'Longitude [{lon}'.format(lon=self[i].spatial_units.x)
+            if self[0].coordinate_system.axis1 == 'HG':
+                xlabel = 'Longitude [{lon}'.format(lon=self[i].spatial_units.axis1)
             else:
-                xlabel = 'X-position [{xpos}]'.format(xpos=self[i].spatial_units.x)
+                xlabel = 'X-position [{xpos}]'.format(xpos=self[i].spatial_units.axis1)
 
             # y-axis label
-            if self[0].coordinate_system.y == 'HG':
-                ylabel = 'Latitude [{lat}]'.format(lat=self[i].spatial_units.y)
+            if self[0].coordinate_system.axis2 == 'HG':
+                ylabel = 'Latitude [{lat}]'.format(lat=self[i].spatial_units.axis2)
             else:
-                ylabel = 'Y-position [{ypos}]'.format(ypos=self[i].spatial_units.y)
+                ylabel = 'Y-position [{ypos}]'.format(ypos=self[i].spatial_units.axis2)
 
             axes.set_xlabel(xlabel)
             axes.set_ylabel(ylabel)
@@ -545,8 +553,10 @@ Scale:\t\t {scale}
             im.set_norm(norm)
 
             if wcsaxes_compat.is_wcsaxes(axes):
+                print(self[i].wcs)
                 im.axes.reset_wcs(self[i].wcs)
-                wcsaxes_compat.default_wcs_grid(axes)
+                wcsaxes_compat.default_wcs_grid(im.axes, self[i].spatial_units,
+                                             self[i].coordinate_system)
             else:
                 im.set_extent(np.concatenate((self[i].xrange.value,
                                               self[i].yrange.value)))

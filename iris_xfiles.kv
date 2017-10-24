@@ -5,25 +5,29 @@
     orientation: 'vertical'
     BoxLayout:
         id: box
+        orientation: 'horizontal'
+
         FileChooserListView:
             id: list
             path:'/net/md5/Volumes/kale/iris/data/level2/'
+            multiselect: False
             canvas.before:
                 Color:
                     rgb: .5,.4,.5
                 Rectangle:
                     pos: self.pos
                     size: self.size
-            on_selection: root.select(*args)
+            on_submit: root.select(*args)
         FileChooserIconView:
             path: '/net/md5/Volumes/kale/iris/data/level2/'
+            multiselect: True
             canvas.before:
                 Color:
                     rgb: .5,.4,.5
                 Rectangle:
                     pos: self.pos
                     size: self.size
-            on_selection: root.select(*args)
+            on_submit: root.select(*args)
     Label:
         id: label
         size_hint_y: .1
