@@ -10,4 +10,6 @@ dependencies:
     - matplotlib
     - numpy
     - sunpy
-    - xarray
+    - pip:
+      - sunpy-sphinx-theme
+      - git+https://github.com/sunpy/ndcube
