@@ -27,32 +27,35 @@ plt.rcParams.update({'font.size': 7})
 
 
 #local directories
-local='/Users/shelbe/Documents/IRIS/data/CH/'
+drive='/Volumes/HDrive/Users/Shelbe/IRIS/AR12641/SJI/'
 iris_dir = '/net/md5/Volumes/kale/iris/data/level2/'
-aia_dir = local + 'AIA/'
+aia_dir = drive + 'AIA/'
 outputfile = '/Users/shelbe/Documents/IRIS/writer_test2.mp4'
 
 #grab all .fits in directory
 import os
-# sji_list=[]
-# for file in os.listdir(local):
-#     if file.endswith(".fits"):
-#         sji_list.append(os.path.join(local, file))
-# print(len(sji_list))
-# aia_list=[]
-# for file in os.listdir(aia_dir):
-#     if file.endswith(".fits"):
-#         aia_list.append(os.path.join(aia_dir, file))
-#print(len(aia_list))
-#dimensions = u.Quantity([250,250],u.pixel) #resample size if using full disk aia image
-#aia = sunpy.map.Map(aia_list)              #Initialize aia maps
-#for n,map in enumerate(aia):           #Resample to 250 x 250 pix
-#   aia[n]=map.resample(dimensions)
-#print('aia list resampled')
+sji_list=[]
+for file in os.listdir(drive):
+    if file.endswith(".fits"):
+        sji_list.append(os.path.join(drive, file))
+print(len(sji_list))
+aia_list=[]
+for file in os.listdir(aia_dir):
+    if file.endswith(".fits"):
+        aia_list.append(os.path.join(aia_dir, file))
+print(len(aia_list))
+dimensions = u.Quantity([250,250],u.pixel) #resample size if using full disk aia image
+aia = sunpy.map.Map(aia_list)              #Initialize aia maps
+for n,map in enumerate(aia):           #Resample to 250 x 250 pix
+  aia[n]=map.resample(dimensions)
+print('aia list resampled')
 
 """sji_list=[]
-date = datetime.datetime(2017,8,8)
-for d in range(0,8):
+start_date = datetime.datetime(2017,8,8)
+end_date = datetime.datetime(2017,8,14)
+delta = end_date-start_date
+date = start_date
+for d in range(0,delta.days+1):
     print(date)
     for root,dir,file in os.walk(iris_dir+date.strftime('%Y/%m/%d')):
         if (str(obs) in dir):
@@ -103,7 +106,7 @@ def sji_animator(sji_list):
 
             st = datetime.datetime.strptime(mc[0].meta['DATE-OBS'], '%Y-%m-%d' + ' ' + '%H:%M:%S.%f')
             et = datetime.datetime.strptime(mc[-1].meta['DATE-OBS'], '%Y-%m-%d' + ' ' + '%H:%M:%S.%f')
-            xshift = -40.*u.arcsec
+            xshift = -0.*u.arcsec
             yshift = 0.*u.arcsec
             xcen = (crval1 - xshift.value) * u.arcsec
             ycen = (crval2 - yshift.value) * u.arcsec
@@ -136,15 +139,15 @@ def sji_animator(sji_list):
                 template = mc.percentile(97).data[crpix2 - ycrop:crpix2 + ycrop, crpix1 - xcrop:crpix1 + xcrop]
                 shift = calculate_shift(layer, template)
                 #if xyshift hits shift boundaries, resize template, rerun calculate shift
-                while (shift[0].value == 2. * yoffset) or (shift[1].value == 2.*xoffset):
-                    if shift[0].value == 2. * yoffset:
-                        ycrop -= 10
-                        yoffset += 10
-                    if shift[1].value == 2.* xoffset:
-                        xcrop -= 10
-                        xoffset +=10
-                    template = mc.percentile(97).data[crpix2 - ycrop:crpix2 + ycrop, crpix1 - xcrop:crpix1 + xcrop]
-                    shift = calculate_shift(layer, template)
+                # while (shift[0].value == 2. * yoffset) or (shift[1].value == 2.*xoffset):
+                #     if shift[0].value == 2. * yoffset:
+                #         ycrop -= 10
+                #         yoffset += 10
+                #     if shift[1].value == 2.* xoffset:
+                #         xcrop -= 10
+                #         xoffset +=10
+                #     template = mc.percentile(97).data[crpix2 - ycrop:crpix2 + ycrop, crpix1 - xcrop:crpix1 + xcrop]
+                #     shift = calculate_shift(layer, template)
 
 
                 print(shift)
@@ -188,7 +191,7 @@ def sji_animator(sji_list):
 
                 # Plot Data
 
-                submap.plot(axes=ax0, norm=colors.PowerNorm(.4,0,50))
+                submap.plot(axes=ax0, norm=colors.PowerNorm(.4,0,100))
                 #submap.draw_rectangle(bl2, 53.232 * u.arcsec, 166.35 * u.arcsec, color='black')
                 #aia[i].plot(axes=ax1, norm=colors.LogNorm(10, 2000))
                 # Draw GUIs
@@ -275,4 +278,4 @@ def intscale(mc):
             m.meta.add_history('Intscale applied')
     return mc
 
-#sji_animator(sji_list[0:])
+sji_animator(sji_list[0:])
