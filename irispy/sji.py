@@ -87,6 +87,7 @@ class SJIMap(GenericMap):
 
 
         self.plot_settings['norm'] = ImageNormalize(stretch=visualization.AsinhStretch(0.1))
+        #colors.PowerNorm(.5, 0, np.percentile(self.data, 99))
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
@@ -138,60 +139,58 @@ class SJICube(object):
     >>> from irispy.data import sample
     >>> sji = SJICube(sample.SJI_CUBE_1400)   # doctest: +SKIP
 
+    For large files, turn on memmap:
+    >>> sji = SJICube(sample.SJI_CUBE_1400, memmap=True)
+
     """
-    # pylint: disable=W0613,E1101
-
-    def __init__(self, input):
+    #pylint: disable=W0613,E1101
+    def __init__(self, input,memmap=False):
         """Creates a new instance"""
-        if type(input) is str:
-            input = [input]
-            for f, filename in enumerate(input):
-                #fits = pyfits.open(input, memmap=True, do_not_scale_image_data=True)
-                hdulist = fits.open(filename)
-                data = hdulist[0].data
-                wcs_ = WCS(hdulist[0].header)
-                ndc = NDCube(data, wcs=wcs_)
-                #self.data = np.ma.masked_less_equal(fits[0].data, 0)
-                self.data = data
-                self.mask = np.ma.masked_equal(data, BAD_PIXEL_VALUE).mask
-                reference_header = deepcopy(hdulist[0].header)
-                table_header = deepcopy(hdulist[1].header)
-                # fix reference header
-                if reference_header.get('lvl_num') == 2:
-                    reference_header['wavelnth'] = reference_header.get('twave1')
-                    reference_header['detector'] = reference_header.get('instrume')
-                    reference_header['waveunit'] = "Angstrom"
-                    reference_header['obsrvtry'] = reference_header.get('telescop')
-                # check consistency
-                if reference_header['NAXIS3'] != self.data.shape[0]:
-                    raise ValueError("Something is not right with this file!")
+        if isinstance(input, str):
+            hdulist = fits.open(input, memmap=memmap, do_not_scale_image_data=memmap)
+            self.data = hdulist[0].data
+            if memmap:
+                self.mask = np.ma.masked_equal(hdulist[0].data, BAD_PIXEL_VALUE_UNSCALED).mask
+            else:
+                self.mask = np.ma.masked_equal(hdulist[0].data, BAD_PIXEL_VALUE).mask
+            reference_header = deepcopy(hdulist[0].header)
+            table_header = deepcopy(hdulist[1].header)
+            # fix reference header
+            if reference_header.get('lvl_num') == 2:
+                reference_header['wavelnth'] = reference_header.get('twave1')
+                reference_header['detector'] = reference_header.get('instrume')
+                reference_header['waveunit'] = "Angstrom"
+                reference_header['obsrvtry'] = reference_header.get('telescop')
+            # check consistency
+            if reference_header['NAXIS3'] != self.data.shape[0]:
+                raise ValueError("Something is not right with this file!")
 
-                number_of_images = self.data.shape[0]
-                metas = []
-                dts = hdulist[1].data[:, hdulist[1].header['TIME']]
-                file_wcs = WCS(hdulist[0].header)
-                # Caution!! This has not been confirmed for non-zero roll
-                # angles.
-                self.slit_center_sji_indices_x = hdulist[1].data[:, hdulist[1].header['SLTPX1IX']]
-                self.slit_center_sji_indices_y = hdulist[1].data[:, hdulist[1].header['SLTPX2IX']]
-                slit_center_positions = file_wcs.celestial.all_pix2world(
-                    self.slit_center_sji_indices_x, self.slit_center_sji_indices_y,
-                    iris_tools.WCS_ORIGIN)
-                self.slit_center_position_x = u.Quantity(slit_center_positions[0], 'deg').to("arcsec")
-                self.slit_center_position_y = u.Quantity(slit_center_positions[1], 'deg').to("arcsec")
+            number_of_images = self.data.shape[0]
+            metas = []
+            dts = hdulist[1].data[:, hdulist[1].header['TIME']]
+            file_wcs = WCS(hdulist[0].header)
+            # Caution!! This has not been confirmed for non-zero roll
+            # angles.
+            self.slit_center_sji_indices_x = hdulist[1].data[:, hdulist[1].header['SLTPX1IX']]
+            self.slit_center_sji_indices_y = hdulist[1].data[:, hdulist[1].header['SLTPX2IX']]
+            slit_center_positions = file_wcs.celestial.all_pix2world(
+                self.slit_center_sji_indices_x, self.slit_center_sji_indices_y,
+                iris_tools.WCS_ORIGIN)
+            self.slit_center_position_x = u.Quantity(slit_center_positions[0], 'deg').to("arcsec")
+            self.slit_center_position_y = u.Quantity(slit_center_positions[1], 'deg').to("arcsec")
 
-                # append info in second hdu to each header
-                for i in range(number_of_images):
-                    metas.append(deepcopy(reference_header))
-                    metas[i]['DATE_OBS'] = str(parse_time(
-                        reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
-                    # copy over the individual header fields
-                    for item in hdulist[1].header[7:]:
-                        metas[i][item] = hdulist[1].data[i, hdulist[1].header[item]]
-                        if item.count('EXPTIMES'):
-                            metas[i]['EXPTIME'] = hdulist[1].data[i, hdulist[1].header[item]]
+            # append info in second hdu to each header
+            for i in range(number_of_images):
+                metas.append(deepcopy(reference_header))
+                metas[i]['DATE_OBS'] = str(parse_time(
+                    reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
+                # copy over the individual header fields
+                for item in hdulist[1].header[7:]:
+                    metas[i][item] = hdulist[1].data[i, hdulist[1].header[item]]
+                    if item.count('EXPTIMES'):
+                        metas[i]['EXPTIME'] = hdulist[1].data[i, hdulist[1].header[item]]
 
-                self._meta = metas
+            self._meta = metas
         elif len(input) > 1:
             self.data = NDCube(input[0], wcs=wcs_)
             self._meta = input[1]
@@ -205,6 +204,9 @@ class SJICube(object):
 
         self.plot_settings = {'norm': norm, 'cmap': cmap}
         self.ref_index = 0
+        self.maps = []
+        for i, m in enumerate(self):
+            self.maps.append(self._get_map(i))
 
     def _get_map(self, index):
         return SJIMap(self.data[index, :, :], self._meta[index], mask=self.mask[index, :, :])
@@ -429,7 +431,7 @@ Scale:\t\t {scale}
         """
         return SJIMap(np.max(self.data, axis=0), self._meta[self.ref_index])
 
-    def percentile(self,n):
+    def percentile(self, n):
         """
         Calculate the nth percentile value of the data array.
         """
@@ -552,10 +554,9 @@ Scale:\t\t {scale}
             # norm.autoscale_None(ani_data[i].data)
             im.set_norm(norm)
 
-            if wcsaxes_compat.is_wcsaxes(axes):
-                print(self[i].wcs)
+            if wcsaxes_compat.is_wcsaxes(im.axes):
                 im.axes.reset_wcs(self[i].wcs)
-                wcsaxes_compat.default_wcs_grid(im.axes, self[i].spatial_units,
+                wcsaxes_compat.default_wcs_grid(im.axes,self[i].spatial_units,
                                              self[i].coordinate_system)
             else:
                 im.set_extent(np.concatenate((self[i].xrange.value,
