@@ -29,10 +29,8 @@ from sunpy.time import parse_time
 from sunpy.lightcurve import LightCurve
 
 from irispy import iris_tools
-from scipy.ndimage import binary_dilation, generate_binary_structure
 
-
-__all__ = ['SJI_fits_to_cube','SJI_to_cube', 'SJICube', 'SJIMap', 'dustbuster', 'intscale']
+__all__ = ['SJI_fits_to_cube', 'SJI_to_cube', 'dustbuster', 'SJICube', 'SJIMap']
 
 from sunpy import config
 TIME_FORMAT = config.get("general", "time_format")
@@ -88,7 +86,6 @@ class SJIMap(GenericMap):
         self.plot_settings['cmap'] = palette
         self.plot_settings['norm'] = ImageNormalize(stretch=visualization.AsinhStretch(0.1))
         #colors.PowerNorm(.5, 0, np.percentile(self.data, 99))
-
 
     @classmethod
     def is_datasource_for(cls, data, header, **kwargs):
@@ -183,7 +180,8 @@ class SJICube(object):
             # append info in second hdu to each header
             for i in range(number_of_images):
                 metas.append(deepcopy(reference_header))
-                metas[i]['DATE_OBS'] = str(parse_time(reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
+                metas[i]['DATE_OBS'] = str(parse_time(
+                    reference_header['STARTOBS']) + timedelta(seconds=dts[i]))
                 # copy over the individual header fields
                 for item in hdulist[1].header[7:]:
                     metas[i][item] = hdulist[1].data[i, hdulist[1].header[item]]
@@ -226,7 +224,7 @@ class SJICube(object):
 
     def __repr__(self):
         return (
-"""SunPy {dtype!s}
+            """SunPy {dtype!s}
 ---------
 Observatory:\t {obs}
 Instrument:\t {inst}
@@ -241,17 +239,17 @@ IRIS Obs. Description:\t {obs_desc}
 Dimensions:\t {dim}
 Scale:\t\t {scale}
 """.format(dtype=self.__class__.__name__,
-           obs=self.observatory, inst=self.instrument, det=self.detector,
-           meas=self.measurement, wave=self.wavelength, date_start=self.date[0],
-           date_end=self.date[-1], frame_num=len(self),
-           dim=u.Quantity(self.dimensions),
-           scale=u.Quantity(self.scale), obs_id=self.iris_obs_id, obs_desc=self.iris_obs_description,
-           tmf=TIME_FORMAT) + self.data.__repr__())
+                obs=self.observatory, inst=self.instrument, det=self.detector,
+                meas=self.measurement, wave=self.wavelength, date_start=self.date[0],
+                date_end=self.date[-1], frame_num=len(self),
+                dim=u.Quantity(self.dimensions),
+                scale=u.Quantity(self.scale), obs_id=self.iris_obs_id, obs_desc=self.iris_obs_description,
+                tmf=TIME_FORMAT) + self.data.__repr__())
 
     # Sorting methods
     @classmethod
     def _sort_by_date(cls):
-        return lambda m: m.date # maps.sort(key=attrgetter('date'))
+        return lambda m: m.date  # maps.sort(key=attrgetter('date'))
 
     def _derotate(self):
         """Derotates the layers in the MapCube"""
@@ -317,7 +315,7 @@ Scale:\t\t {scale}
         Image scale along the x and y axes in units/pixel (i.e. cdelt1,
         cdelt2)
         """
-        #TODO: Fix this if only CDi_j matrix is provided
+        # TODO: Fix this if only CDi_j matrix is provided
         return self._get_map(self.ref_index).scale
 
     @property
@@ -355,13 +353,13 @@ Scale:\t\t {scale}
         data = np.ma.masked_less_equal(data, 0)
         _meta = []
         for i in range(0, len(self)):
-            data[i,:,:] = new_maps[i].data
+            data[i, :, :] = new_maps[i].data
             _meta.append(deepcopy(new_maps[i].meta))
         return SJICube((data, _meta))
 
     def lightcurve(self, location_a, location_b, range_c=None):
         """Given a pixel index return a lightcurve."""
-        return LightCurve(DataFrame({"{0},{1}".format(location_a, location_b):self.data[:, location_a,location_b]},
+        return LightCurve(DataFrame({"{0},{1}".format(location_a, location_b): self.data[:, location_a, location_b]},
                                     index=self.date))
 
     @u.quantity_input(dimensions=u.pixel, offset=u.pixel)
@@ -387,11 +385,17 @@ Scale:\t\t {scale}
         """
         Apply a function that operates on the full 3-d data in the mapcube and
         return a single 2-d map based on that function.
-        :param function: a function that takes a 3-d numpy array as its first
-        argument.
-        :param function_args: function arguments
-        :param function_kwargs: function keywords
-        :return: `sunpy.map.Map`
+
+        Parameters
+        ----------
+        function: a function that takes a 3-d numpy array as its first
+            argument.
+        function_args: function arguments
+        function_kwargs: function keywords
+
+        Returns
+        -------
+        SJIMAP: `sunpy.map.Map`
             A map that stores the result of applying the function to the 3-d
             data of the mapcube.
         """
@@ -430,7 +434,7 @@ Scale:\t\t {scale}
         Calculate the nth percentile value of the data array.
         """
         return SJIMap(np.percentile(self.data, n, axis=0), self._meta[self.ref_index])
-
+      
     def plot(self, axes=None, resample=None, annotate=True, interval=200,
              plot_function=None, **kwargs):
         """
@@ -690,7 +694,8 @@ Scale:\t\t {scale}
             elif use_offset_for_meta == 'behind':
                 new_meta = self._meta[i]
             else:
-                raise ValueError('The value of the keyword "use_offset_for_meta" has not been recognized.')
+                raise ValueError(
+                    'The value of the keyword "use_offset_for_meta" has not been recognized.')
             new_mc.append(Map(new_data, new_meta))
 
         # Create the new mapcube and return
@@ -726,7 +731,8 @@ Scale:\t\t {scale}
             base_data = base.data
 
         if base_data.shape != self.data.shape:
-            raise ValueError('Base map does not have the same shape as the maps in the input mapcube.')
+            raise ValueError(
+                'Base map does not have the same shape as the maps in the input mapcube.')
 
         # Fractional changes or absolute changes
         if fraction:
@@ -778,23 +784,29 @@ def SJI_fits_to_cube(filelist, start=0, stop=None, skip=None):
     if type(filelist) == str:
         filelist = [filelist]
     iris_cube = sunpy.map.MapCube()
-    for fname in filelist[0:]:
+    for fname in filelist:
         newmap = SJI_to_cube(fname)
         for frame in newmap[start:stop:skip]:
             if frame.mean() < frame.max():
+                cmap = cm.get_cmap(frame._get_cmap_name())
+                vmax = frame.mean()+3.*frame.std()
+                frame.plot_settings['cmap'] = cmap
+                frame.plot_settings['norm'] = colors.LogNorm(1, vmax)
+                #  todo: iris_intscale
                 iris_cube.maps.append(frame)
 
     #  todo: pointing correction(rot_hpc)
-
-
     return iris_cube
+
 
 def SJI_to_cube(filename, start=0, stop=None, hdu=0):
     """
     Read a SJI file and return a MapCube
-    .. warning::
-        This function is a very early beta and is not stable. Further work is
-        on going to improve SunPy IRIS support.
+    Warning
+    -------
+    This function is a very early beta and is not stable. Further work is
+    on going to improve SunPy IRIS support.
+
     Parameters
     ----------
     filename: string
@@ -805,6 +817,7 @@ def SJI_to_cube(filename, start=0, stop=None, hdu=0):
         Temporal index to stop MapCube at
     hdu: int
         Choose hdu index
+
     Returns
     -------
     iris_cube: sunpy.map.MapCube
@@ -815,16 +828,6 @@ def SJI_to_cube(filename, start=0, stop=None, hdu=0):
     # Get the time delta
     time_range = sunpy.time.TimeRange(hdus[hdu][1]['STARTOBS'],
                                       hdus[hdu][1]['ENDOBS'])
-
-    #(xcen,ycen)=diff_rot.rot_hpc(hdus[hdu][1]['CRVAL1']*u.arcsec,hdus[hdu][1]['CRVAL2']*u.arcsec,hdus[hdu][1]['ENDOBS'],
-#                                 hdus[hdu][1]['STARTOBS'],rot_type='howard')
-
-    #crval1=xcen/u.arcsec
-    #crval2=ycen/u.arcsec
-    #dx = (hdus[hdu][1]['CRVAL1'] - crval1) / hdus[hdu][0].shape[0]
-    #dy = (hdus[hdu][1]['CRVAL2'] - crval2) / hdus[hdu][0].shape[0]
-
-
     splits = time_range.split(hdus[hdu][0].shape[0])
 
     if not stop:
@@ -834,17 +837,14 @@ def SJI_to_cube(filename, start=0, stop=None, hdu=0):
     datas = hdus[hdu][0][start:stop]
 
     # Make the cube:
-    mc = sunpy.map.Map(list(zip(datas, headers)), cube=True)
+    iris_cube = sunpy.map.Map(list(zip(datas, headers)), cube=True)
     # Set the date/time
-    iris_cube = dustbuster(mc)
-    cmap = cm.get_cmap(iris_cube[0]._get_cmap_name())
+
     for i, m in enumerate(iris_cube):
         m.meta['DATE-OBS'] = splits[i].center.isoformat()
-        m.plot_settings['cmap'] = cmap
-        m.plot_settings['norm'] = colors.LogNorm(1, 200)
-
 
     return iris_cube
+
 
 def dustbuster(mc):
     """
@@ -865,34 +865,30 @@ def dustbuster(mc):
     """
     image_result = []
     ndx = len(mc)
-    #intscale(mc)
-
     for i, map in enumerate(mc):
         image_orig = map.data
-        xlength,ylength = map.data.shape
-        if i ==0:
-            nx = map.meta.get('NRASTERP')
+        nx = map.meta.get('NRASTERP')
+        firstpos = range(ndx)[0::nx]
+        #  Create mask with values < 1, excluding frame (-200)
+        m = ma.masked_inside(image_orig, -199, .1)
+
         if nx <= 50:  # sparse/coarse raster
             skip = 1
+            secpos = [-1]
+            thirdpos = [-1]
         elif nx > 50:  # dense raster
-            skip = 3
-        #  Create mask with values < 10)
-        m = ma.masked_inside(image_orig,-199,0)
-        #  Dilate dust spots by 1 pixel
-        dilate = generate_binary_structure(2, 2)
-        m.mask = binary_dilation(m.mask, structure=dilate)
-        if (i)%nx>=nx-skip:
-            skip = -1*(skip)
-        image_inpaint = mc[i + skip].data.copy()
+            skip = 5
+            secpos = range(ndx)[1::nx]
+            thirdpos = range(ndx)[2::nx]
+
+        if (i in firstpos) or (i in secpos) or (i in thirdpos):
+            image_inpaint = mc[i + skip].data.copy()  # grab next frame
+        else:
+            image_inpaint = mc[i - skip].data.copy()  # grab prev frame
+
+        # Inpaint mask onto image
         image_orig[m.mask] = image_inpaint[m.mask]
-        map.dustmask = m.mask
-        map.meta.add_history('Dustbuster correction applied, dustmask attribute added')
-    return mc
-def intscale(mc):
-    offset = 31968
-    for map in mc:
-        imdata=map.data
-        if imdata.min() == BAD_PIXEL_VALUE_UNSCALED:
-            imdata[:, :] = (imdata[:, :]+offset) * .25
-            map.meta.add_history('Intscale applied')
+
+        map.data = image_orig
+
     return mc
